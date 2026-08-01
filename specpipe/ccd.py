@@ -9,33 +9,19 @@ import numpy as np
 from astropy.io import fits
 
 
+
 class CCDProcessor:
     """
     Basic CCD image processor.
     """
 
-
     def __init__(self, instrument):
-        """
-        Parameters
-        ----------
-        instrument :
-            Instrument configuration object
-            (CanHiS, TS23, ...)
-        """
 
         self.instrument = instrument
 
 
 
     def read(self, filename):
-        """
-        Read FITS image.
-
-        Returns
-        -------
-        data, header
-        """
 
         data, header = fits.getdata(
             filename,
@@ -47,9 +33,6 @@ class CCDProcessor:
 
 
     def write(self, filename, data, header=None):
-        """
-        Write FITS image.
-        """
 
         fits.writeto(
             filename,
@@ -61,8 +44,9 @@ class CCDProcessor:
 
 
     def parse_iraf_section(self, section):
+
         """
-        Convert IRAF section notation:
+        Convert IRAF section:
 
         [x1:x2,y1:y2]
 
@@ -78,24 +62,17 @@ class CCDProcessor:
 
             start, end = value.split(":")
 
-            return (
-                int(start)-1,
-                int(end)
-            )
+            return int(start)-1, int(end)
 
 
-        return (
-            parse(xsec),
-            parse(ysec)
-        )
+        return parse(xsec), parse(ysec)
 
 
 
     def overscan_correct(self, data):
+
         """
         Subtract overscan level.
-
-        Uses instrument overscan region.
         """
 
         section = self.instrument.get(
@@ -123,25 +100,18 @@ class CCDProcessor:
         )
 
 
-        corrected = data - level
-
-
-        return corrected
+        return data - level
 
 
 
     def fix_bad_pixels(self, data):
-        """
-        Correct bad pixel regions.
 
-        The bad pixel file format follows IRAF:
+        """
+        Correct bad pixels using interpolation.
+
+        Format:
 
         x1 x2 y1 y2
-
-        Example:
-
-        200 200 1 2048
-        1635 1636 1 2048
         """
 
         filename = self.instrument.get(
@@ -154,9 +124,11 @@ class CCDProcessor:
 
 
         if not Path(filename).exists():
+
             print(
                 f"Warning: {filename} not found"
             )
+
             return data
 
 
@@ -177,14 +149,15 @@ class CCDProcessor:
                 )
 
 
-                # Convert to python indexes
                 x1 -= 1
                 x2 -= 1
 
 
-                # Protect borders
+                if x1 <= 0:
+                    continue
 
-                if x1 == 0 or x2 >= corrected.shape[1]-1:
+
+                if x2 >= corrected.shape[1]-1:
                     continue
 
 
@@ -204,8 +177,8 @@ class CCDProcessor:
                     y1:y2,
                     x1:x2+1
                 ] = (
-                    left[:, None] +
-                    right[:, None]
+                    left[:,None] +
+                    right[:,None]
                 ) / 2
 
 
@@ -214,8 +187,9 @@ class CCDProcessor:
 
 
     def trim(self, data):
+
         """
-        Apply trimming region.
+        Apply CCD trimming.
         """
 
         section = self.instrument.get(
@@ -227,7 +201,7 @@ class CCDProcessor:
             return data
 
 
-        (x1, x2), (y1, y2) = self.parse_iraf_section(
+        (x1,x2),(y1,y2)=self.parse_iraf_section(
             section
         )
 
@@ -240,14 +214,15 @@ class CCDProcessor:
 
 
     def process(self, input_file, output_file):
+
         """
-        Complete CCD processing.
+        Complete CCD reduction.
 
         Steps:
 
         1. Overscan correction
-        2. Bad pixel correction
-        3. Trim
+        2. Trim
+        3. Bad pixel correction
         """
 
         data, header = self.read(
@@ -260,13 +235,26 @@ class CCDProcessor:
         )
 
 
+        data = self.trim(
+            data
+        )
+
+
         data = self.fix_bad_pixels(
             data
         )
 
 
-        data = self.trim(
-            data
+        header["HISTORY"] = (
+            "specpipe: overscan correction"
+        )
+
+        header["HISTORY"] = (
+            "specpipe: trim applied"
+        )
+
+        header["HISTORY"] = (
+            "specpipe: bad pixel correction"
         )
 
 
