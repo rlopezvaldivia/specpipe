@@ -13,6 +13,8 @@ class CanHiS(Instrument):
 
         "dispaxis": 1,
 
+        "mode": "simple",
+
         "bad_pixels": "bad_pixels.dat",
 
         "overscan": "[1:1601,1:2048]",
