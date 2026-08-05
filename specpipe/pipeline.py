@@ -8,6 +8,7 @@ import shutil
 from specpipe.ccd import CCDProcessor
 from specpipe.apertures import ApertureProcessor
 from specpipe.wavecal import WaveCalibrator
+from specpipe.calibration import Calibration
 
 
 
@@ -24,6 +25,7 @@ class ReductionPipeline:
 
         self.instrument = instrument
 
+
         self.bias = []
         self.flats = []
         self.arcs = []
@@ -35,10 +37,12 @@ class ReductionPipeline:
         )
 
 
-        # Lazy loading for IRAF-dependent modules
+        self.calibration = Calibration()
+
 
         self.apertures = None
         self.wavecal = None
+
 
 
 
@@ -127,6 +131,7 @@ class ReductionPipeline:
             )
 
 
+
         for item in self.flats:
 
             shutil.copy(
@@ -135,12 +140,14 @@ class ReductionPipeline:
             )
 
 
+
         for item in self.arcs:
 
             shutil.copy(
                 item,
                 self.night / "arc"
             )
+
 
 
         for item in self.objects:
@@ -222,6 +229,64 @@ class ReductionPipeline:
                     output
                 )
 
+
+
+
+
+
+
+    def create_calibrations(self):
+
+        """
+        Create master bias and master flat.
+        """
+
+        processed = self.night / "processed"
+
+
+        bias_files = sorted(
+            processed.joinpath("bias").glob("*.fits")
+        )
+
+
+        flat_files = sorted(
+            processed.joinpath("flat").glob("*.fits")
+        )
+
+
+        master_bias = processed / "master_bias.fits"
+
+        master_flat = processed / "master_flat.fits"
+
+
+
+        print(
+            f"Creating master bias from {len(bias_files)} images"
+        )
+
+
+        self.calibration.create_master_bias(
+            bias_files,
+            master_bias
+        )
+
+
+
+        print(
+            "Creating master flat"
+        )
+
+
+        self.calibration.create_master_flat(
+            flat_files,
+            master_bias,
+            master_flat
+        )
+
+
+        print(
+            "Calibration frames created"
+        )
 
 
 
