@@ -1,19 +1,20 @@
 """
-CCD processing utilities for specpipe.
-
-Initial implementation replacing IRAF ccdproc.
+CCD processing module.
 """
 
-from pathlib import Path
 import numpy as np
+from pathlib import Path
+
 from astropy.io import fits
 
 
 
 class CCDProcessor:
     """
-    Basic CCD image processor.
+    Apply CCD corrections.
     """
+
+
 
     def __init__(self, instrument):
 
@@ -21,58 +22,46 @@ class CCDProcessor:
 
 
 
-    def read(self, filename):
-
-        data, header = fits.getdata(
-            filename,
-            header=True
-        )
-
-        return data, header
-
-
-
-    def write(self, filename, data, header=None):
-
-        fits.writeto(
-            filename,
-            data,
-            header=header,
-            overwrite=True
-        )
 
 
 
     def parse_iraf_section(self, section):
 
         """
-        Convert IRAF section:
+        Convert IRAF section notation:
 
         [x1:x2,y1:y2]
 
-        into Python indexes.
+        into Python indices.
         """
 
         section = section.strip("[]")
 
+
         xsec, ysec = section.split(",")
+
 
 
         def parse(value):
 
             start, end = value.split(":")
 
-            return int(start)-1, int(end)
+            return int(start), int(end)
+
 
 
         return parse(xsec), parse(ysec)
 
 
 
+
+
+
+
     def overscan_correct(self, data):
 
         """
-        Subtract overscan level.
+        Apply overscan correction.
         """
 
         section = self.instrument.get(
@@ -81,108 +70,44 @@ class CCDProcessor:
 
 
         if section is None:
+
             return data
 
 
-        (x1, x2), (y1, y2) = self.parse_iraf_section(
+
+        (x1,x2),(y1,y2)=self.parse_iraf_section(
             section
         )
 
 
         overscan = data[
-            y1:y2,
-            x1:x2
+            y1-1:y2,
+            x1-1:x2
         ]
 
 
-        level = np.median(
-            overscan
-        )
 
-
-        return data - level
-
-
-
-    def fix_bad_pixels(self, data):
-
-        """
-        Correct bad pixels using interpolation.
-
-        Format:
-
-        x1 x2 y1 y2
-        """
-
-        filename = self.instrument.get(
-            "bad_pixels"
-        )
-
-
-        if filename is None:
-            return data
-
-
-        if not Path(filename).exists():
-
-            print(
-                f"Warning: {filename} not found"
-            )
+        if overscan.size == 0:
 
             return data
 
 
-        corrected = data.copy()
+
+        correction = np.median(
+            overscan,
+            axis=1
+        )
 
 
-        with open(filename) as f:
+        corrected = data - correction[:,None]
 
-            for line in f:
-
-                if line.strip() == "":
-                    continue
-
-
-                x1, x2, y1, y2 = map(
-                    int,
-                    line.split()
-                )
-
-
-                x1 -= 1
-                x2 -= 1
-
-
-                if x1 <= 0:
-                    continue
-
-
-                if x2 >= corrected.shape[1]-1:
-                    continue
-
-
-                left = corrected[
-                    y1:y2,
-                    x1-1
-                ]
-
-
-                right = corrected[
-                    y1:y2,
-                    x2+1
-                ]
-
-
-                corrected[
-                    y1:y2,
-                    x1:x2+1
-                ] = (
-                    left[:,None] +
-                    right[:,None]
-                ) / 2
 
 
         return corrected
+
+
+
+
 
 
 
@@ -190,6 +115,12 @@ class CCDProcessor:
 
         """
         Apply CCD trimming.
+
+        IRAF convention:
+            [x1:x2,y1:y2]
+
+        Python convention:
+            data[y,x]
         """
 
         section = self.instrument.get(
@@ -198,7 +129,9 @@ class CCDProcessor:
 
 
         if section is None:
+
             return data
+
 
 
         (x1,x2),(y1,y2)=self.parse_iraf_section(
@@ -206,10 +139,77 @@ class CCDProcessor:
         )
 
 
+
         return data[
-            y1:y2,
-            x1:x2
+            y1-1:y2,
+            x1-1:x2
         ]
+
+
+
+
+
+
+
+    def bad_pixel_correction(self, data):
+
+        """
+        Apply bad pixel mask if available.
+        """
+
+        bad_file = self.instrument.get(
+            "bad_pixels"
+        )
+
+
+        if bad_file is None:
+
+            return data
+
+
+
+        if not Path(bad_file).exists():
+
+            print(
+                f"Warning: {bad_file} not found"
+            )
+
+            return data
+
+
+
+        bad_pixels = np.loadtxt(
+            bad_file,
+            dtype=int
+        )
+
+
+
+        corrected = data.copy()
+
+
+
+        for y,x in bad_pixels:
+
+            if (
+                y < corrected.shape[0]
+                and x < corrected.shape[1]
+            ):
+
+                corrected[y,x] = np.median(
+                    corrected[
+                        max(0,y-1):y+2,
+                        max(0,x-1):x+2
+                    ]
+                )
+
+
+
+        return corrected
+
+
+
+
 
 
 
@@ -219,15 +219,20 @@ class CCDProcessor:
         Complete CCD reduction.
 
         Steps:
-
-        1. Overscan correction
-        2. Trim
-        3. Bad pixel correction
+            1. Read FITS
+            2. Overscan correction
+            3. Trim
+            4. Bad pixel correction
+            5. Save output
         """
 
-        data, header = self.read(
-            input_file
+
+
+        data, header = fits.getdata(
+            input_file,
+            header=True
         )
+
 
 
         data = self.overscan_correct(
@@ -240,9 +245,10 @@ class CCDProcessor:
         )
 
 
-        data = self.fix_bad_pixels(
+        data = self.bad_pixel_correction(
             data
         )
+
 
 
         header["HISTORY"] = (
@@ -258,8 +264,10 @@ class CCDProcessor:
         )
 
 
-        self.write(
+
+        fits.writeto(
             output_file,
             data,
-            header
+            header,
+            overwrite=True
         )

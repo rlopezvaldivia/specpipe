@@ -17,9 +17,9 @@ class CanHiS(Instrument):
 
         "bad_pixels": "bad_pixels.dat",
 
-        "overscan": "[1:1601,1:2048]",
+        "overscan": "[2045:2048,1:2048]",
 
-        "trimsec": "[250:1850,1:2048]",
+        "trimsec": "[770:1025,1:2048]",
 
         "ccdtype": "",
 
