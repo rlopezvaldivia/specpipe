@@ -39,9 +39,9 @@ class ReductionPipeline:
             instrument
         )
 
-        self.apertures = ApertureProcessor()
+        self.apertures = None #ApertureProcessor()
 
-        self.wavecal = WaveCalibrator()
+        self.wavecal = None #WaveCalibrator()
 
 
 
