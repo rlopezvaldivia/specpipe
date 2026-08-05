@@ -10,10 +10,12 @@ from specpipe.apertures import ApertureProcessor
 from specpipe.wavecal import WaveCalibrator
 
 
+
 class ReductionPipeline:
     """
     Main controller for specpipe reduction.
     """
+
 
 
     def __init__(self, night, instrument):
@@ -27,13 +29,18 @@ class ReductionPipeline:
         self.arcs = []
         self.objects = []
 
+
         self.ccd = CCDProcessor(
             instrument
         )
 
-        # Lazy loading: IRAF modules only when required
+
+        # Lazy loading for IRAF-dependent modules
+
         self.apertures = None
         self.wavecal = None
+
+
 
 
 
@@ -79,6 +86,9 @@ class ReductionPipeline:
         print(f"Flat: {len(self.flats)}")
         print(f"Arc: {len(self.arcs)}")
         print(f"Objects: {len(self.objects)}")
+
+
+
 
 
 
@@ -142,11 +152,91 @@ class ReductionPipeline:
 
 
 
+
+
+
+
+    def process_ccd(self):
+
+        """
+        Apply CCD corrections to all images.
+        """
+
+        folders = [
+
+            "bias",
+            "flat",
+            "arc",
+            "objects"
+
+        ]
+
+
+        output_base = self.night / "processed"
+
+
+
+        for folder in folders:
+
+
+            input_dir = self.night / folder
+
+            output_dir = output_base / folder
+
+
+            output_dir.mkdir(
+                parents=True,
+                exist_ok=True
+            )
+
+
+
+            files = sorted(
+                list(input_dir.glob("*.fits")) +
+                list(input_dir.glob("*.fits.gz"))
+            )
+
+
+            print(
+                f"{folder}: {len(files)} files"
+            )
+
+
+
+            for filename in files:
+
+
+                output = output_dir / filename.name.replace(
+                    ".gz",
+                    ""
+                )
+
+
+                print(
+                    f"Processing {filename}"
+                )
+
+
+                self.ccd.process(
+                    filename,
+                    output
+                )
+
+
+
+
+
+
+
+
     def _load_apertures(self):
 
         if self.apertures is None:
 
             self.apertures = ApertureProcessor()
+
+
+
 
 
 
@@ -158,13 +248,6 @@ class ReductionPipeline:
 
 
 
-    def process_ccd(self):
-
-        """
-        Apply CCD corrections.
-        """
-
-        pass
 
 
 
@@ -177,6 +260,9 @@ class ReductionPipeline:
         self._load_apertures()
 
         self.apertures.process()
+
+
+
 
 
 
