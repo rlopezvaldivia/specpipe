@@ -1,13 +1,9 @@
 """
-Main reduction pipeline for specpipe.
-
-Controls the complete spectroscopic reduction workflow.
+Main reduction pipeline controller.
 """
 
 from pathlib import Path
 import shutil
-
-from astropy.io import fits
 
 from specpipe.ccd import CCDProcessor
 from specpipe.apertures import ApertureProcessor
@@ -16,108 +12,80 @@ from specpipe.wavecal import WaveCalibrator
 
 class ReductionPipeline:
     """
-    Main controller for spectroscopic reductions.
+    Main controller for specpipe reduction.
     """
 
 
-    def __init__(self, night_dir, instrument):
+    def __init__(self, night, instrument):
 
-        self.night_dir = Path(night_dir)
+        self.night = Path(night)
 
         self.instrument = instrument
-
-        self.workdir = Path.cwd()
-
 
         self.bias = []
         self.flats = []
         self.arcs = []
         self.objects = []
 
-
         self.ccd = CCDProcessor(
             instrument
         )
 
-        self.apertures = None 
-
-        self.wavecal = None 
+        # Lazy loading: IRAF modules only when required
+        self.apertures = None
+        self.wavecal = None
 
 
 
     def classify_files(self):
 
         """
-        Classify FITS files using IMGTYPE header.
+        Classify FITS files from observing night.
         """
 
         files = sorted(
-            self.night_dir.glob(
-                "*.fits"
-            )
+            list(self.night.glob("*.fits")) +
+            list(self.night.glob("*.fits.gz"))
         )
 
 
         for filename in files:
 
-            with fits.open(filename) as hdul:
-
-                imgtype = hdul[0].header.get(
-                    "IMGTYPE",
-                    ""
-                ).lower()
+            name = filename.name.lower()
 
 
-            if imgtype in ["bias", "zero"]:
+            if name.endswith("b.fits") or name.endswith("b.fits.gz"):
 
-                self.bias.append(
-                    filename
-                )
+                self.bias.append(filename)
 
 
-            elif imgtype == "flat":
+            elif name.endswith("f.fits") or name.endswith("f.fits.gz"):
 
-                self.flats.append(
-                    filename
-                )
+                self.flats.append(filename)
 
 
-            elif imgtype == "arc":
+            elif name.endswith("a.fits") or name.endswith("a.fits.gz"):
 
-                self.arcs.append(
-                    filename
-                )
+                self.arcs.append(filename)
 
 
-            else:
+            elif name.endswith("o.fits") or name.endswith("o.fits.gz"):
 
-                self.objects.append(
-                    filename
-                )
+                self.objects.append(filename)
 
 
-        print(
-            f"Bias: {len(self.bias)}"
-        )
 
-        print(
-            f"Flat: {len(self.flats)}"
-        )
-
-        print(
-            f"Arc: {len(self.arcs)}"
-        )
-
-        print(
-            f"Objects: {len(self.objects)}"
-        )
+        print(f"Bias: {len(self.bias)}")
+        print(f"Flat: {len(self.flats)}")
+        print(f"Arc: {len(self.arcs)}")
+        print(f"Objects: {len(self.objects)}")
 
 
 
     def organize_files(self):
 
         """
-        Create reduction folders.
+        Create reduction folders inside night directory.
         """
 
         folders = [
@@ -133,16 +101,19 @@ class ReductionPipeline:
 
         for folder in folders:
 
-            Path(folder).mkdir(
+            Path(
+                self.night / folder
+            ).mkdir(
                 exist_ok=True
             )
+
 
 
         for item in self.bias:
 
             shutil.copy(
                 item,
-                "bias"
+                self.night / "bias"
             )
 
 
@@ -150,7 +121,7 @@ class ReductionPipeline:
 
             shutil.copy(
                 item,
-                "flat"
+                self.night / "flat"
             )
 
 
@@ -158,7 +129,7 @@ class ReductionPipeline:
 
             shutil.copy(
                 item,
-                "arc"
+                self.night / "arc"
             )
 
 
@@ -166,8 +137,24 @@ class ReductionPipeline:
 
             shutil.copy(
                 item,
-                "objects"
+                self.night / "objects"
             )
+
+
+
+    def _load_apertures(self):
+
+        if self.apertures is None:
+
+            self.apertures = ApertureProcessor()
+
+
+
+    def _load_wavecal(self):
+
+        if self.wavecal is None:
+
+            self.wavecal = WaveCalibrator()
 
 
 
@@ -177,115 +164,28 @@ class ReductionPipeline:
         Apply CCD corrections.
         """
 
-        print(
-            "CCD processing"
-        )
-
-
-        for filename in (
-
-            self.bias
-            +
-            self.flats
-            +
-            self.objects
-            +
-            self.arcs
-
-        ):
-
-
-            output = Path(
-                filename.name
-            )
-
-
-            self.ccd.process(
-                filename,
-                output
-            )
+        pass
 
 
 
-    def run_apertures(
-        self,
-        object_list="objects.lst"
-    ):
+    def run_apertures(self):
 
         """
-        Run aperture extraction.
+        Extract apertures.
         """
 
-        self.apertures.process(
-            object_list
-        )
+        self._load_apertures()
+
+        self.apertures.process()
 
 
 
-    def run_wavelength_calibration(
-        self,
-        identify=True
-    ):
+    def run_wavecal(self):
 
         """
-        Run wavelength calibration.
+        Perform wavelength calibration.
         """
 
-        all_files = (
+        self._load_wavecal()
 
-            self.arcs
-            +
-            self.objects
-
-        )
-
-
-        self.wavecal.process(
-
-            all_files,
-
-            "@list_objects.txt",
-
-            identify=identify
-
-        )
-
-
-
-    def run(
-        self,
-        apertures=True,
-        wavelength=True
-    ):
-
-        """
-        Execute complete reduction.
-        """
-
-        print(
-            "Starting specpipe"
-        )
-
-
-        self.classify_files()
-
-
-        self.organize_files()
-
-
-        self.process_ccd()
-
-
-        if apertures:
-
-            self.run_apertures()
-
-
-        if wavelength:
-
-            self.run_wavelength_calibration()
-
-
-        print(
-            "Reduction finished"
-        )
+        self.wavecal.process()
