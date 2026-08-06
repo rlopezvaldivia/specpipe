@@ -79,7 +79,7 @@ pipe.extract_spectra()
 
 pipe.extract_arcs()
 
-pipe.calibrate_wavelength("specpipe/data/ThAr_Li_20260326.dat")
+pipe.calibrate_wavelength("specpipe/data/test.dat")
 print("\nReduction completed successfully.")
 
 
