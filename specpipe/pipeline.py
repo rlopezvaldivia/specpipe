@@ -797,7 +797,7 @@ class ReductionPipeline:
     # Extract arc spectra
     #
     ####################################################################
-    def extract_arcs(self):
+    def extract_arcs(filename, outfile):
 
         """
         Extract arc lamp spectra

@@ -382,7 +382,7 @@ class ExtractionProcessor:
 
         )
 
-    def refine_trace(
+     def refine_trace(
         self,
         image,
         trace,
@@ -728,9 +728,7 @@ class ExtractionProcessor:
 
         output,
 
-        trace,
-
-        files=None
+        trace
 
     ):
 
@@ -770,27 +768,15 @@ class ExtractionProcessor:
         )
 
 
-        if files is None:
+        files = sorted(
 
-            files = sorted(
+            science.glob(
 
-                science.glob(
-
-                    "*.fits"
-
-                )
+                "*.fits"
 
             )
 
-        else:
-
-            files = [
-
-                Path(f)
-
-                for f in files
-
-            ]
+        )
 
 
         for filename in files:
@@ -824,52 +810,4 @@ class ExtractionProcessor:
 
             )
 
-    def extract_arc(
-        self,
-        arc_file,
-        output_file,
-        aperture=20
-    ):
 
-        """
-        Extract arc spectrum using
-        the center of the trimmed region.
-        """
-
-        from astropy.io import fits
-        import numpy as np
-
-
-        with fits.open(
-            arc_file
-        ) as hdul:
-
-            data = hdul[0].data
-
-            header = hdul[0].header
-
-
-        y_center = data.shape[1] // 2
-
-
-        y1 = y_center - aperture
-
-        y2 = y_center + aperture
-
-
-        spectrum = np.sum(
-            data[:, y1:y2],
-            axis=1
-        )
-
-
-        hdu = fits.PrimaryHDU(
-            spectrum,
-            header=header
-        )
-
-
-        hdu.writeto(
-            output_file,
-            overwrite=True
-        )
