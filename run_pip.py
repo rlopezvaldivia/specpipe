@@ -2,6 +2,18 @@
 from specpipe.extraction import ExtractionProcessor
 from specpipe.pipeline import ReductionPipeline
 from specpipe.config import get_instrument
+from specpipe.observation_list import ObservationList
+
+
+obs_list = ObservationList(
+    "observation_list.txt"
+)
+
+
+
+obs_list = ObservationList(
+    "observation_list.txt"
+)
 
 
 #
@@ -15,9 +27,11 @@ inst = get_instrument(
 #
 # Create pipeline
 #
+
 pipe = ReductionPipeline(
     "20260326",
-    inst
+    inst,
+    obs_list
 )
 
 
@@ -25,6 +39,10 @@ pipe = ReductionPipeline(
 # File classification
 #
 pipe.classify_files()
+
+#print(self.objects)
+#print(self.arcs)
+
 
 
 #
@@ -44,6 +62,9 @@ pipe.process_ccd()
 #
 pipe.create_calibrations()
 
+#
+#Create the trace
+pipe.trace_aperture()
 
 #
 # Calibrate science frames
@@ -57,6 +78,8 @@ pipe.calibrate_science()
 pipe.extract_spectra()
 
 pipe.extract_arcs()
+
+pipe.calibrate_wavelength("specpipe/data/ThAr_Li_20260326.dat")
 print("\nReduction completed successfully.")
 
 

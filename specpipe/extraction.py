@@ -728,7 +728,9 @@ class ExtractionProcessor:
 
         output,
 
-        trace
+        trace,
+
+        files=None
 
     ):
 
@@ -768,15 +770,27 @@ class ExtractionProcessor:
         )
 
 
-        files = sorted(
+        if files is None:
 
-            science.glob(
+            files = sorted(
 
-                "*.fits"
+                science.glob(
+
+                    "*.fits"
+
+                )
 
             )
 
-        )
+        else:
+
+            files = [
+
+                Path(f)
+
+                for f in files
+
+            ]
 
 
         for filename in files:

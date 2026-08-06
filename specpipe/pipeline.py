@@ -13,7 +13,8 @@ from specpipe.ccd import CCDProcessor
 from specpipe.calibration import Calibration
 from specpipe.science import ScienceProcessor
 from specpipe.extraction import ExtractionProcessor
-
+from specpipe.observation_list import ObservationList
+from specpipe.wavelength import WavelengthCalibration
 
 
 class ReductionPipeline:
@@ -30,7 +31,9 @@ class ReductionPipeline:
 
         night,
 
-        instrument
+        instrument,
+
+        observation_list=None
 
     ):
 
@@ -43,6 +46,8 @@ class ReductionPipeline:
 
 
         self.instrument = instrument
+
+        self.observation_list=observation_list
 
 
 
@@ -83,7 +88,7 @@ class ReductionPipeline:
 
         )
 
-
+        self.wavelength = WavelengthCalibration()
 
 
 
@@ -95,28 +100,112 @@ class ReductionPipeline:
 
 
     def classify_files(self):
-
         """
         Identify raw FITS files.
         """
 
-        files = sorted(
+        if self.observation_list is None:
 
-            list(
-                self.night.glob(
-                    "*.fits"
+            files = sorted(
+
+                list(
+                    self.night.glob(
+                        "*.fits"
+                    )
                 )
+
+                +
+
+                list(
+                    self.night.glob(
+                        "*.fits.gz"
+                    )
+                )
+
             )
 
-            +
+        else:
 
-            list(
-                self.night.glob(
-                    "*.fits.gz"
+            files = []
+
+
+            #
+            # Keep all calibration frames
+            #
+
+            files.extend(
+
+                sorted(
+
+                    list(
+                        self.night.glob(
+                            "*b.fits"
+                        )
+                    )
+
+                    +
+
+                    list(
+                        self.night.glob(
+                            "*b.fits.gz"
+                        )
+                    )
+
+                    +
+
+                    list(
+                        self.night.glob(
+                            "*f.fits"
+                        )
+                    )
+
+                    +
+
+                    list(
+                        self.night.glob(
+                            "*f.fits.gz"
+                        )
+                    )
+
                 )
+
             )
 
-        )
+
+            #
+            # Add selected science frames
+            #
+
+            files.extend(
+
+                [
+
+                    self.night / f
+
+                    for f in self.observation_list.science_files()
+
+                ]
+
+            )
+
+
+            #
+            # Add associated arcs
+            #
+
+            files.extend(
+
+                [
+
+                    self.night / entry["arc"]
+
+                    for entry in self.observation_list.observations()
+
+                ]
+
+            )
+            
+        
 
 
         for filename in files:
@@ -708,24 +797,12 @@ class ReductionPipeline:
     # Extract arc spectra
     #
     ####################################################################
-
     def extract_arcs(self):
 
         """
         Extract arc lamp spectra
-        using the science trace.
+        associated with science observations.
         """
-
-
-        arc_dir = (
-
-            self.night /
-
-            "processed" /
-
-            "arc"
-
-        )
 
 
         output = (
@@ -748,18 +825,191 @@ class ReductionPipeline:
         )
 
 
-        self.extractor.process(
+        master_flat = (
 
             self.night /
 
             "processed" /
 
-            "master_flat.fits",
-
-            arc_dir,
-
-            output,
-
-            trace
+            "master_flat.fits"
 
         )
+
+
+        for entry in self.observation_list.observations():
+
+
+            arc = (
+
+                self.night /
+
+                entry["arc"]
+
+            )
+
+
+            arc_output = (
+
+                output /
+
+                arc.stem
+
+            )
+
+
+            arc_output.mkdir(
+
+                parents=True,
+
+                exist_ok=True
+
+            )
+
+
+            self.extractor.process(
+
+                master_flat,
+
+                self.night / "processed" / "arc",
+
+                arc_output,
+
+                trace,
+
+                files=[arc]
+
+            )
+    
+    ####################################################################
+    #
+    # Wavelength calibration
+    #
+    ####################################################################
+
+
+    def calibrate_wavelength(
+
+        self,
+
+        solution_file
+
+    ):
+
+        """
+        Apply wavelength calibration
+        using identified arc solution.
+        """
+
+
+        solution_file = Path(
+
+            solution_file
+
+        )
+
+        solution = (
+
+            self.night /
+
+            "calibration" /
+
+            "wavelength_solution.dat"
+
+        )
+
+
+        if solution.exists():
+
+
+            coef = self.wavelength.load_solution(
+
+                solution
+
+            )
+
+
+        else:
+
+
+            pixels, wavelengths = self.wavelength.load_solution_file(
+
+                solution_file
+
+            )
+
+
+            coef = self.wavelength.fit_solution(
+
+                pixels,
+
+                wavelengths
+
+            )
+
+
+            self.wavelength.save_solution(
+
+                solution,
+
+                coef
+
+            )
+        
+
+        input_dir = (
+
+            self.night /
+
+            "final_spectra"
+
+        )
+
+
+        output_dir = (
+
+            self.night /
+
+            "wavecal_spectra"
+
+        )
+
+
+        output_dir.mkdir(
+
+            parents=True,
+
+            exist_ok=True
+
+        )
+
+
+        for entry in self.observation_list.observations():
+
+
+            science = (
+
+                input_dir /
+
+                entry["science"]
+
+            )
+
+
+            output = (
+
+                output_dir /
+
+                science.name
+
+            )
+
+
+            self.wavelength.apply_solution(
+
+                science,
+
+                output,
+
+                coef
+
+            )
