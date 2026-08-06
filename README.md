@@ -37,7 +37,7 @@ Additional documentation can be found in the `docs/` directory.
 
 At the moment, the pipeline has been tested only for:
 
-* CAnHiS observations.
+* CanHiS observations.
 * Long-slit observations.
 * Spectra with the dispersion axis aligned with the detector **Y-axis**.
 
