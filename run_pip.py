@@ -58,3 +58,5 @@ pipe.extract_spectra()
 
 pipe.extract_arcs()
 print("\nReduction completed successfully.")
+
+

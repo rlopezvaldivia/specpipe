@@ -1,106 +1,238 @@
 """
 Main reduction pipeline controller.
+
+specpipe pipeline.
+
 """
 
 from pathlib import Path
 import shutil
 
+
 from specpipe.ccd import CCDProcessor
-from specpipe.apertures import ApertureProcessor
-from specpipe.wavecal import WaveCalibrator
 from specpipe.calibration import Calibration
+from specpipe.science import ScienceProcessor
+from specpipe.extraction import ExtractionProcessor
 
 
 
 class ReductionPipeline:
+
     """
-    Main controller for specpipe reduction.
+    Main controller for spectral reduction.
     """
 
 
 
-    def __init__(self, night, instrument):
+    def __init__(
 
-        self.night = Path(night)
+        self,
+
+        night,
+
+        instrument
+
+    ):
+
+
+        self.night = Path(
+
+            night
+
+        )
+
 
         self.instrument = instrument
 
 
+
+        #
+        # File containers
+        #
+
         self.bias = []
+
         self.flats = []
+
         self.arcs = []
+
         self.objects = []
 
 
+
+        #
+        # Processing modules
+        #
+
         self.ccd = CCDProcessor(
+
             instrument
+
         )
 
 
         self.calibration = Calibration()
 
 
-        self.apertures = None
-        self.wavecal = None
+        self.science = ScienceProcessor()
+
+
+        self.extractor = ExtractionProcessor(
+
+            instrument
+
+        )
 
 
 
 
+
+    ####################################################################
+    #
+    # File classification
+    #
+    ####################################################################
 
 
     def classify_files(self):
 
         """
-        Classify FITS files from observing night.
+        Identify raw FITS files.
         """
 
         files = sorted(
-            list(self.night.glob("*.fits")) +
-            list(self.night.glob("*.fits.gz"))
+
+            list(
+                self.night.glob(
+                    "*.fits"
+                )
+            )
+
+            +
+
+            list(
+                self.night.glob(
+                    "*.fits.gz"
+                )
+            )
+
         )
 
 
         for filename in files:
 
+
             name = filename.name.lower()
 
 
-            if name.endswith("b.fits") or name.endswith("b.fits.gz"):
 
-                self.bias.append(filename)
+            if name.endswith(
 
+                "b.fits"
 
-            elif name.endswith("f.fits") or name.endswith("f.fits.gz"):
+            ) or name.endswith(
 
-                self.flats.append(filename)
+                "b.fits.gz"
 
+            ):
 
-            elif name.endswith("a.fits") or name.endswith("a.fits.gz"):
+                self.bias.append(
 
-                self.arcs.append(filename)
+                    filename
 
-
-            elif name.endswith("o.fits") or name.endswith("o.fits.gz"):
-
-                self.objects.append(filename)
+                )
 
 
+            elif name.endswith(
 
-        print(f"Bias: {len(self.bias)}")
-        print(f"Flat: {len(self.flats)}")
-        print(f"Arc: {len(self.arcs)}")
-        print(f"Objects: {len(self.objects)}")
+                "f.fits"
+
+            ) or name.endswith(
+
+                "f.fits.gz"
+
+            ):
+
+                self.flats.append(
+
+                    filename
+
+                )
+
+
+            elif name.endswith(
+
+                "a.fits"
+
+            ) or name.endswith(
+
+                "a.fits.gz"
+
+            ):
+
+                self.arcs.append(
+
+                    filename
+
+                )
+
+
+            elif name.endswith(
+
+                "o.fits"
+
+            ) or name.endswith(
+
+                "o.fits.gz"
+
+            ):
+
+                self.objects.append(
+
+                    filename
+
+                )
 
 
 
+        print(
 
+            f"Bias: {len(self.bias)}"
+
+        )
+
+        print(
+
+            f"Flat: {len(self.flats)}"
+
+        )
+
+        print(
+
+            f"Arc: {len(self.arcs)}"
+
+        )
+
+        print(
+
+            f"Objects: {len(self.objects)}"
+
+        )
+
+
+    ####################################################################
+    #
+    # Organize files
+    #
+    ####################################################################
 
 
     def organize_files(self):
 
         """
-        Create reduction folders inside night directory.
+        Create reduction folders.
         """
+
 
         folders = [
 
@@ -108,6 +240,8 @@ class ReductionPipeline:
             "flat",
             "arc",
             "objects",
+            "processed",
+            "calibrated",
             "final_spectra"
 
         ]
@@ -116,227 +250,516 @@ class ReductionPipeline:
         for folder in folders:
 
             Path(
+
                 self.night / folder
+
             ).mkdir(
+
                 exist_ok=True
+
             )
 
 
 
-        for item in self.bias:
+        groups = [
 
-            shutil.copy(
-                item,
-                self.night / "bias"
+            (
+                self.bias,
+                "bias"
+            ),
+
+            (
+                self.flats,
+                "flat"
+            ),
+
+            (
+                self.arcs,
+                "arc"
+            ),
+
+            (
+                self.objects,
+                "objects"
             )
 
+        ]
 
 
-        for item in self.flats:
-
-            shutil.copy(
-                item,
-                self.night / "flat"
-            )
+        for files, folder in groups:
 
 
+            for item in files:
 
-        for item in self.arcs:
+                shutil.copy(
 
-            shutil.copy(
-                item,
-                self.night / "arc"
-            )
+                    item,
 
+                    self.night / folder / item.name
 
-
-        for item in self.objects:
-
-            shutil.copy(
-                item,
-                self.night / "objects"
-            )
+                )
 
 
 
-
-
+    ####################################################################
+    #
+    # CCD processing
+    #
+    ####################################################################
 
 
     def process_ccd(self):
 
         """
-        Apply CCD corrections to all images.
+        Apply CCD corrections
+        to raw frames.
         """
 
-        folders = [
+
+        print(
+
+            "Processing CCD frames"
+
+        )
+
+
+        input_groups = [
 
             "bias",
+
             "flat",
+
             "arc",
+
             "objects"
 
         ]
 
 
-        output_base = self.night / "processed"
+        for group in input_groups:
 
 
+            input_dir = self.night / group
 
-        for folder in folders:
 
+            output_dir = (
 
-            input_dir = self.night / folder
+                self.night /
 
-            output_dir = output_base / folder
+                "processed" /
+
+                group
+
+            )
 
 
             output_dir.mkdir(
-                parents=True,
-                exist_ok=True
-            )
 
+                parents=True,
+
+                exist_ok=True
+
+            )
 
 
             files = sorted(
-                list(input_dir.glob("*.fits")) +
-                list(input_dir.glob("*.fits.gz"))
+
+                list(
+                    input_dir.glob(
+                        "*.fits"
+                    )
+                )
+
+                +
+
+                list(
+                    input_dir.glob(
+                        "*.fits.gz"
+                    )
+                )
+
             )
 
 
-            print(
-                f"{folder}: {len(files)} files"
-            )
+            for file in files:
 
 
+                output = (
 
-            for filename in files:
+                    output_dir /
 
+                    file.with_suffix(
+                        ""
+                    ).name
 
-                output = output_dir / filename.name.replace(
-                    ".gz",
-                    ""
                 )
 
 
+                if output.suffix != ".fits":
+
+                    output = output.with_suffix(
+                        ".fits"
+                    )
+
+
+
                 print(
-                    f"Processing {filename}"
+
+                    f"Processing {file}"
+
                 )
 
 
                 self.ccd.process(
-                    filename,
+
+                    file,
+
                     output
+
                 )
-
-
-
-
-
-
 
     def create_calibrations(self):
 
         """
-        Create master bias and master flat.
+        Create master calibration frames.
         """
 
-        processed = self.night / "processed"
+        print(
+            "Creating calibration frames"
+        )
+
+
+        processed = (
+
+            self.night /
+
+            "processed"
+
+        )
 
 
         bias_files = sorted(
-            processed.joinpath("bias").glob("*.fits")
+
+            processed.joinpath("bias").glob(
+
+                "*.fits"
+
+            )
+
         )
 
 
         flat_files = sorted(
-            processed.joinpath("flat").glob("*.fits")
+
+            processed.joinpath("flat").glob(
+
+                "*.fits"
+
+            )
+
         )
 
 
-        master_bias = processed / "master_bias.fits"
+        arc_files = sorted(
 
-        master_flat = processed / "master_flat.fits"
+            processed.joinpath("arc").glob(
 
+                "*.fits"
 
+            )
 
-        print(
-            f"Creating master bias from {len(bias_files)} images"
         )
 
 
         self.calibration.create_master_bias(
+
             bias_files,
-            master_bias
-        )
 
+            processed / "master_bias.fits"
 
-
-        print(
-            "Creating master flat"
         )
 
 
         self.calibration.create_master_flat(
+            
             flat_files,
-            master_bias,
-            master_flat
+
+            processed / "master_bias.fits",
+
+            processed / "master_flat.fits"
+
+        )
+
+
+
+       # self.calibration.create_master_arc(
+
+#            arc_files,
+
+ #           processed / "master_arc.fits"
+
+ #       )
+
+
+        print(
+
+            "Calibration frames created"
+
+        )
+    ####################################################################
+    #
+    # Science calibration
+    #
+    ####################################################################
+
+
+    def calibrate_science(self):
+
+        """
+        Apply bias/flat calibration
+        to science frames.
+        """
+
+
+        processed = (
+
+            self.night /
+
+            "processed" /
+
+            "objects"
+
+        )
+
+
+        output = (
+
+            self.night /
+
+            "calibrated"
+
+        )
+
+
+        output.mkdir(
+
+            parents=True,
+
+            exist_ok=True
+
+        )
+
+
+        files = sorted(
+
+            processed.glob(
+
+                "*.fits"
+
+            )
+
         )
 
 
         print(
-            "Calibration frames created"
+
+            f"Calibrating {len(files)} science frames"
+
+        )
+
+
+        for file in files:
+
+
+            outfile = (
+
+                output /
+
+                file.name
+
+            )
+
+
+            self.science.calibrate_object(
+
+                file,
+                
+                self.night / "processed" / "master_bias.fits",
+
+                self.night / "processed" / "master_flat.fits",
+
+
+                outfile
+
+            )
+
+
+
+    ####################################################################
+    #
+    # Trace creation
+    #
+    ####################################################################
+
+
+    def trace_aperture(self):
+
+        """
+        Create aperture trace
+        from master flat.
+        """
+
+
+        flat = (
+
+            self.night /
+
+            "processed" /
+
+            "master_flat.fits"
+
+        )
+
+
+        trace = (
+
+            self.night /
+
+            "processed" /
+
+            "trace.fits"
+
+        )
+
+
+        self.extractor.create_trace(
+
+            flat,
+
+            trace
+
         )
 
 
 
+    ####################################################################
+    #
+    # Spectrum extraction
+    #
+    ####################################################################
 
 
-
-
-    def _load_apertures(self):
-
-        if self.apertures is None:
-
-            self.apertures = ApertureProcessor()
-
-
-
-
-
-
-    def _load_wavecal(self):
-
-        if self.wavecal is None:
-
-            self.wavecal = WaveCalibrator()
-
-
-
-
-
-
-    def run_apertures(self):
+    def extract_spectra(self):
 
         """
-        Extract apertures.
+        Extract 1D spectra
+        from calibrated science frames.
         """
 
-        self._load_apertures()
 
-        self.apertures.process()
+        trace = (
+
+            self.night /
+
+            "processed" /
+
+            "trace.fits"
+
+        )
 
 
+        science = (
+
+            self.night /
+
+            "calibrated"
+
+        )
 
 
+        output = (
+
+            self.night /
+
+            "final_spectra"
+
+        )
 
 
-    def run_wavecal(self):
+        self.extractor.process(
+
+            self.night /
+
+            "processed" /
+
+            "master_flat.fits",
+
+            science,
+
+            output,
+
+            trace
+
+        )
+
+
+        ####################################################################
+    #
+    # Extract arc spectra
+    #
+    ####################################################################
+
+    def extract_arcs(self):
 
         """
-        Perform wavelength calibration.
+        Extract arc lamp spectra
+        using the science trace.
         """
 
-        self._load_wavecal()
 
-        self.wavecal.process()
+        arc_dir = (
+
+            self.night /
+
+            "processed" /
+
+            "arc"
+
+        )
+
+
+        output = (
+
+            self.night /
+
+            "arc_spectra"
+
+        )
+
+
+        trace = (
+
+            self.night /
+
+            "processed" /
+
+            "trace.fits"
+
+        )
+
+
+        self.extractor.process(
+
+            self.night /
+
+            "processed" /
+
+            "master_flat.fits",
+
+            arc_dir,
+
+            output,
+
+            trace
+
+        )
