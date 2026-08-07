@@ -80,6 +80,9 @@ pipe.extract_spectra()
 pipe.extract_arcs()
 
 pipe.calibrate_wavelength("specpipe/data/test.dat")
+
+pipe.calibrate_wavelength_2d()
+
 print("\nReduction completed successfully.")
 
 

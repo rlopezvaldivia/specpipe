@@ -372,3 +372,78 @@ class WavelengthCalibration:
             filename
 
         )
+
+    def apply_solution_2d(
+
+        self,
+
+        input_file,
+
+        output_file,
+
+        coef
+
+    ):
+
+        """
+        Apply wavelength solution
+        to a 2D FITS image.
+        """
+
+
+        with fits.open(
+
+            input_file
+
+        ) as hdul:
+
+
+            data = hdul[0].data
+
+            header = hdul[0].header.copy()
+
+
+        wavelength = self.wavelength_array(
+
+            data.shape[1],
+
+            coef
+
+        )
+
+
+        header["CTYPE1"] = "WAVE"
+
+        header["CRVAL1"] = wavelength[0]
+
+        header["CDELT1"] = (
+
+            wavelength[1] -
+
+            wavelength[0]
+
+        )
+
+        header["CUNIT1"] = "Angstrom"
+
+
+        header.add_history(
+
+            "specpipe: wavelength calibration (2D)"
+
+        )
+
+
+        fits.PrimaryHDU(
+
+            data,
+
+            header=header
+
+        ).writeto(
+
+            output_file,
+
+            overwrite=True
+
+        )

@@ -1013,3 +1013,94 @@ class ReductionPipeline:
                 coef
 
             )
+
+
+#-----
+#Calibrated 2D
+#-----
+    def calibrate_wavelength_2d(
+
+        self
+
+    ):
+
+        """
+        Apply wavelength calibration
+        to calibrated 2D images.
+        """
+
+
+        solution = (
+
+            self.night /
+
+            "calibration" /
+
+            "wavelength_solution.dat"
+
+        )
+
+
+        coef = self.wavelength.load_solution(
+
+            solution
+
+        )
+
+
+        input_dir = (
+
+            self.night /
+
+            "calibrated"
+
+        )
+
+
+        output_dir = (
+
+            self.night /
+
+            "wavecal_2d"
+
+        )
+
+
+        output_dir.mkdir(
+
+            parents=True,
+
+            exist_ok=True
+
+        )
+
+
+        for filename in sorted(
+
+            input_dir.glob(
+
+                "*.fits"
+
+            )
+
+        ):
+
+
+            outfile = (
+
+                output_dir /
+
+                filename.name
+
+            )
+
+
+            self.wavelength.apply_solution_2d(
+
+                filename,
+
+                outfile,
+
+                coef
+
+            )

@@ -23,15 +23,45 @@ python run_pip.py
 
 Configuration files and examples are provided in the repository.
 
-# Visualizing calibrated spectra
+## Plotting spectra
 
-After the reduction and wavelength calibration steps, the final 1D spectra can be visualized using the `plot_spectrum.py` script.
+The utility `plot_spectrum.py` can display both 1D extracted spectra and
+2D wavelength-calibrated images.
 
-Example:
+### Plot a 1D spectrum
 
 ```bash
-python plot_spectrum.py 20260326/wavecal_spectra/20260326_0044o_wcal.fits
+python plot_spectrum.py \
+    20260326/wavecal_spectra/20260326_0044o.fits
 ```
+
+### Plot a 2D spectrum
+
+If the input image is 2D, the program automatically extracts a spectrum
+using the central rows.
+
+```bash
+python plot_spectrum.py \
+    20260326/wavecal_2d/20260326_0044o.fits
+```
+
+### Extract around a different spatial position
+
+```bash
+python plot_spectrum.py \
+    20260326/wavecal_2d/20260326_0044o.fits \
+    --center 140 \
+    --width 15
+```
+
+where:
+
+- `center` is the spatial pixel used as the extraction center.
+- `width` is the half-width of the extraction aperture in pixels.
+
+The extracted spectrum is displayed either in wavelength (if WCS keywords
+are present) or in detector pixels.
+
 ## Documentation
 
 Additional documentation can be found in the `docs/` directory.
