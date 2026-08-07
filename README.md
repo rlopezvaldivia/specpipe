@@ -23,6 +23,14 @@ python run_pip.py
 
 Configuration files and examples are provided in the repository.
 
+# Visualizing calibrated spectra
+
+After the reduction and wavelength calibration steps, the final 1D spectra can be visualized using the `plot_spectrum.py` script.
+
+Example:
+
+```bash
+python plot_spectrum.py 20260326/wavecal_spectra/20260326_0044o_wcal.fits
 ## Documentation
 
 Additional documentation can be found in the `docs/` directory.
