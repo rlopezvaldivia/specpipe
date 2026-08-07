@@ -31,6 +31,7 @@ Example:
 
 ```bash
 python plot_spectrum.py 20260326/wavecal_spectra/20260326_0044o_wcal.fits
+```
 ## Documentation
 
 Additional documentation can be found in the `docs/` directory.
